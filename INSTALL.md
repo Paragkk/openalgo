@@ -26,7 +26,7 @@ Before installing OpenAlgo, ensure you have the following prerequisites installe
 
    For Windows users:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 
    For Linux/Nginx users:

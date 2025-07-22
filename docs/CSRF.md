@@ -17,7 +17,7 @@ Cross-Site Request Forgery (CSRF) is an attack that forces authenticated users t
 
 ### 4.1 Configuration
 - Add `FLASK_SEASURF_SECRET_KEY` to `.env`.  
-- Install `Flask-SeaSurf` (update `requirements.txt`).
+- Install `Flask-SeaSurf` (update `pyproject.toml`).
 - In `app.py`, initialize middleware:
   ```python
   from flask_seasurf import SeaSurf

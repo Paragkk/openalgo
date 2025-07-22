@@ -5,7 +5,7 @@ OpenAlgo uses environment variables as the primary method for configuration. Thi
 ## Mechanism
 
 *   **.env File:** Configuration variables are typically defined in a `.env` file located in the project root directory.
-*   **python-dotenv:** The `python-dotenv` library (listed in `requirements.txt`) is used to load these variables from the `.env` file into the application's environment when it starts.
+*   **python-dotenv:** The `python-dotenv` library (listed in `pyproject.toml`) is used to load these variables from the `.env` file into the application's environment when it starts.
 *   **Loading and Validation:** The custom function `utils.env_check.load_and_check_env_variables()` is called at the very beginning of `app.py`. This function likely handles:
     *   Loading variables from the `.env` file.
     *   Checking for the presence of essential variables.

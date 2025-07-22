@@ -8,14 +8,14 @@ Based on the files present (e.g., `ema_crossover.py`, `supertrend.py`), trading 
 
 *   **Python Modules/Classes:** Each `.py` file could represent a distinct strategy, possibly implemented as a class inheriting from a base strategy class or following a specific functional convention.
 *   **Core Logic:** These modules contain the algorithms that analyze market data, identify trading opportunities (entry/exit signals), and determine order parameters (symbol, quantity, price, order type).
-*   **Indicators:** Strategies often rely on technical indicators. These might be calculated within the strategy code itself using libraries like `pandas-ta` (listed in `requirements.txt`) or potentially fetched from external sources or pre-calculated data stores.
+*   **Indicators:** Strategies often rely on technical indicators. These might be calculated within the strategy code itself using libraries like `pandas-ta` (listed in `pyproject.toml`) or potentially fetched from external sources or pre-calculated data stores.
 *   **Configuration:** Strategies might be configurable via parameters stored in the database (`strategy_db.py`) or passed during initialization.
 
 ## Strategy Execution
 
 The exact mechanism for strategy execution isn't fully evident from the file structure alone, but common patterns include:
 
-*   **Scheduled Execution:** An external scheduler (like APScheduler, found in `requirements.txt`) or a background task runner (like Celery, if used) might periodically trigger the execution of active strategies (e.g., every minute, hour, or on specific market events).
+*   **Scheduled Execution:** An external scheduler (like APScheduler, found in `pyproject.toml`) or a background task runner (like Celery, if used) might periodically trigger the execution of active strategies (e.g., every minute, hour, or on specific market events).
 *   **Event-Driven Execution:** Strategies might subscribe to real-time market data streams (potentially via WebSockets handled by broker adapters or Flask-SocketIO) and react to incoming ticks or price changes.
 *   **Webhook Triggers:** The presence of `webhook.ipynb` and the `chartink_bp` blueprint suggests that strategies might also be triggered by external signals received via webhooks (e.g., from TradingView alerts or ChartInk scans).
 

@@ -64,15 +64,15 @@ Details for each section will be filled in as the audit progresses.
     - Configure a `CSP_REPORT_URI` for active monitoring of violations.
 
 ### 6. Dependency Management
-*Investigation of `requirements.txt` and `package.json` complete.*
+*Investigation of `pyproject.toml` and `package.json` complete.*
 
-**Python Dependencies (`requirements.txt`):**
+**Python Dependencies (`pyproject.toml`):**
 - A comprehensive list of Python packages with pinned versions is provided.
 - Key libraries for web framework (Flask, Werkzeug), database (SQLAlchemy), security (argon2, cryptography, PyJWT), and HTTP are included.
 - Versions for major components like Flask (3.0.3) and cryptography (44.0.1) appear relatively recent.
 - **Manual review of each package for vulnerabilities is impractical.**
 - **Recommendations:**
-    - **Critical:** Regularly run a vulnerability scanner tool (e.g., `pip-audit install -r requirements.txt` or `safety check -r requirements.txt`) against `requirements.txt` to identify known vulnerabilities.
+    - **Critical:** Regularly run a vulnerability scanner tool (e.g., `pip-audit` or `safety check`) against `pyproject.toml` dependencies to identify known vulnerabilities.
     - Implement a process for periodically reviewing and updating dependencies to their latest stable and secure versions.
 
 **Node.js Dependencies (`package.json`):**
