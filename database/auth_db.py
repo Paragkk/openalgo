@@ -279,3 +279,16 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
             return (None, None, None) if include_feed_token else (None, None)
     else:
         return (None, None, None) if include_feed_token else (None, None)
+
+def get_latest_auth_token_by_broker(broker_name):
+    """Get the most recent decrypted auth token for a specific broker"""
+    try:
+        auth_obj = Auth.query.filter_by(broker=broker_name, is_revoked=False).order_by(Auth.id.desc()).first()
+        if auth_obj:
+            return decrypt_token(auth_obj.auth)
+        else:
+            logger.warning(f"No valid auth token found for broker '{broker_name}'.")
+            return None
+    except Exception as e:
+        logger.error(f"Error while querying the database for auth token for broker '{broker_name}': {e}")
+        return None

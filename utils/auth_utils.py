@@ -48,19 +48,23 @@ def async_master_contract_download(broker):
     try:
         master_contract_status = master_contract_module.master_contract_download()
         
-        # Most brokers return the socketio.emit result, we need to check completion
-        # by looking at the module's actual completion
-        
-        # Try to get the symbol count from the database
+        # Try to get the symbol count from the database to verify download success
         try:
             from database.token_db import get_symbol_count
             total_symbols = get_symbol_count()
-        except:
-            total_symbols = None
             
-        # Since socketio.emit doesn't return a meaningful value, we check if no exception was raised
-        update_status(broker, 'success', 'Master contract download completed successfully', total_symbols)
-        logger.info(f"Master contract download completed for {broker}")
+            # Check if we actually have symbols downloaded
+            if total_symbols and total_symbols > 0:
+                update_status(broker, 'success', 'Master contract download completed successfully', total_symbols)
+                logger.info(f"Master contract download completed for {broker} with {total_symbols} symbols")
+            else:
+                update_status(broker, 'error', 'Master contract download failed: No symbols downloaded')
+                logger.error(f"Master contract download failed for {broker}: No symbols in database")
+                return {'status': 'error', 'message': 'No symbols downloaded'}
+        except Exception as symbol_error:
+            logger.error(f"Error checking symbol count for {broker}: {str(symbol_error)}")
+            update_status(broker, 'error', f'Master contract download error: Unable to verify download - {str(symbol_error)}')
+            return {'status': 'error', 'message': f'Unable to verify download: {str(symbol_error)}'}
             
     except Exception as e:
         logger.error(f"Error during master contract download for {broker}: {str(e)}")
