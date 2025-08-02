@@ -49,8 +49,24 @@ The following table summarizes the key findings and prioritizes recommendations 
 - **Recommendation:** Prioritize the removal of `'unsafe-inline'` from the CSP directives.
 
 ### 6. Dependency Management
-- **Python & Node.js:** Dependencies are pinned, which is good for reproducibility, but no automated vulnerability scanning is in place.
-- **Recommendation:** Integrate automated security scanning for all dependencies into the CI/CD pipeline.
+*Investigation of `pyproject.toml` and `package.json` complete.*
+
+**Python Dependencies (`pyproject.toml`):**
+- A comprehensive list of Python packages with pinned versions is provided.
+- Key libraries for web framework (Flask, Werkzeug), database (SQLAlchemy), security (argon2, cryptography, PyJWT), and HTTP are included.
+- Versions for major components like Flask (3.0.3) and cryptography (44.0.1) appear relatively recent.
+- **Manual review of each package for vulnerabilities is impractical.**
+- **Recommendations:**
+    - **Critical:** Regularly run a vulnerability scanner tool (e.g., `pip-audit` or `safety check`) against `pyproject.toml` dependencies to identify known vulnerabilities.
+    - Implement a process for periodically reviewing and updating dependencies to their latest stable and secure versions.
+
+**Node.js Dependencies (`package.json`):**
+- Contains only `devDependencies` (autoprefixer, daisyui, postcss, tailwindcss).
+- These are used for the frontend asset build process (CSS).
+- While not directly part of the runtime production bundle served to users, vulnerabilities in build tools could compromise the build pipeline.
+- **Recommendations:**
+    - Regularly run `npm audit` (or `yarn audit`) to check `devDependencies` for known vulnerabilities.
+    - Keep these build-tool dependencies updated.
 
 ### 7. API Security
 - **Rate Limiting:** `Flask-Limiter` is correctly applied to API and authentication routes. The in-memory backend is a limitation for scaled deployments.

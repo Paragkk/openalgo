@@ -67,7 +67,7 @@ Before diving in, here's what powers OpenAlgo:
    source venv/bin/activate
    
    # Install dependencies
-   pip install -r requirements.txt
+   uv sync
    ```
 
 5. **Install Node Dependencies**

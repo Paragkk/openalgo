@@ -46,7 +46,7 @@ Key characteristics:
 *   `utils/`: Common utility functions and classes used across the application (e.g., `env_check.py`, `latency_monitor.py`, `plugin_loader.py`).
 *   `websocket_proxy/`: WebSocket proxy server implementation with broker adapters for real-time market data streaming.
 *   `app.py`: Main Flask application entry point, initializes the app, extensions, and blueprints.
-*   `requirements.txt`: Lists Python package dependencies.
+*   `pyproject.toml`: Defines Python package dependencies and project metadata.
 *   `Dockerfile`, `docker-compose.yaml`: Configuration for building and running the application with Docker.
 *   `.env`, `.sample.env`: Environment variable configuration.
 

@@ -395,6 +395,24 @@ def broker_callback(broker,para=None):
         auth_token, feed_token, user_id, error_message = auth_function(auth_code, state)
         forward_url = 'broker.html'
         
+    elif broker == 'alpaca':
+        if request.method == 'GET':
+            return render_template('alpaca.html')
+        
+        elif request.method == 'POST':
+            # For Alpaca, we just need to validate the API key and secret
+            # They are already configured in environment variables
+            
+            # Import the auth function for Alpaca
+            from broker.alpaca.api.auth_api import authenticate_broker
+            
+            # Authenticate using environment variables
+            auth_token, error_message = authenticate_broker()
+            
+            if auth_token:
+                return handle_auth_success(auth_token, session['user'], broker)
+            else:
+                return render_template('alpaca.html', error=error_message)
 
     else:
         code = request.args.get('code') or request.args.get('request_token')

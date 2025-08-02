@@ -5,7 +5,7 @@ The database layer is responsible for data persistence and retrieval within Open
 ## ORM and Library
 
 *   **SQLAlchemy:** OpenAlgo utilizes SQLAlchemy as its primary Object-Relational Mapper (ORM). SQLAlchemy provides a high-level API for interacting with relational databases, allowing developers to work with Python objects instead of writing raw SQL queries for most operations.
-*   **Flask-SQLAlchemy:** While not explicitly seen in `extensions.py`, the presence of `Flask-SQLAlchemy` in `requirements.txt` and the pattern of initializing databases within the app context strongly suggest its use. This extension integrates SQLAlchemy smoothly with Flask, managing sessions and configurations tied to the Flask application context.
+*   **Flask-SQLAlchemy:** While not explicitly seen in `extensions.py`, the presence of `Flask-SQLAlchemy` in `pyproject.toml` and the pattern of initializing databases within the app context strongly suggest its use. This extension integrates SQLAlchemy smoothly with Flask, managing sessions and configurations tied to the Flask application context.
 
 ## Database Structure and Models
 

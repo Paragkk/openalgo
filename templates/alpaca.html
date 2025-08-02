@@ -1,0 +1,130 @@
+{% extends "layout.html" %}
+
+{% block title %}Alpaca Authentication - OpenAlgo{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-8rem)] flex items-center justify-center py-8">
+    <div class="container mx-auto px-4">
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-16">
+            <div class="card flex-shrink-0 w-full max-w-md shadow-2xl bg-base-100">
+                <div class="card-body">
+                    <div class="flex justify-center mb-6">
+                        <img class="h-20 w-auto" src="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}" alt="OpenAlgo">
+                    </div>
+
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-bold">Connect to Alpaca</h2>
+                        <p class="text-sm text-gray-600 mt-2">
+                            Make sure your Alpaca API keys are configured in the environment variables.
+                        </p>
+                    </div>
+
+                    <form action="/alpaca/callback" method="POST" class="space-y-4">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        
+                        <div class="alert alert-info">
+                            <div>
+                                <h3 class="font-bold">API Configuration Required</h3>
+                                <div class="text-sm mt-2">
+                                    <p>Please ensure the following environment variables are set:</p>
+                                    <ul class="list-disc list-inside mt-2 space-y-1">
+                                        <li><code>BROKER_API_KEY</code> - Your Alpaca API Key</li>
+                                        <li><code>BROKER_API_SECRET</code> - Your Alpaca Secret Key</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <div>
+                                <h3 class="font-bold">Paper Trading</h3>
+                                <p class="text-sm mt-1">
+                                    This integration uses Alpaca's paper trading environment for testing purposes.
+                                </p>
+                            </div>
+                        </div>
+
+                        {% if error %}
+                        <div class="alert alert-error">
+                            <span>{{ error }}</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="form-control mt-6">
+                            <button type="submit" class="btn btn-primary w-full">
+                                Connect to Alpaca
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="divider">Information</div>
+                    
+                    <div class="text-sm text-gray-600 space-y-2">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>US Stock Trading</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>Paper Trading Environment</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>Real-time Market Data</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>Commission-free Trading</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 max-w-2xl">
+                <div class="text-center lg:text-left space-y-6">
+                    <h1 class="text-4xl lg:text-6xl font-bold">
+                        Connect with
+                        <span class="text-primary">Alpaca</span>
+                    </h1>
+                    <p class="text-lg lg:text-xl text-gray-600">
+                        Access US stock markets through Alpaca's powerful trading platform. 
+                        Trade commission-free with real-time data and advanced order types.
+                    </p>
+                    
+                    <div class="stats shadow">
+                        <div class="stat">
+                            <div class="stat-figure text-primary">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-title">Markets</div>
+                            <div class="stat-value text-primary">US</div>
+                            <div class="stat-desc">NYSE, NASDAQ, AMEX</div>
+                        </div>
+                        
+                        <div class="stat">
+                            <div class="stat-figure text-secondary">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                </svg>
+                            </div>
+                            <div class="stat-title">Commission</div>
+                            <div class="stat-value text-secondary">$0</div>
+                            <div class="stat-desc">Free stock trading</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
