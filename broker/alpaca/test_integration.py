@@ -129,6 +129,57 @@ def test_order_mapping():
         print(f"✗ Order mapping test error: {str(e)}")
         return False
 
+def test_trade_mapping():
+    """Test trade data mapping"""
+    print("\nTesting Trade Data Mapping...")
+    
+    try:
+        from broker.alpaca.mapping.order_data import map_trade_data
+        
+        # Mock Alpaca filled order response (representing a trade)
+        alpaca_trade = {
+            'id': '12345678-1234-1234-1234-123456789012',
+            'symbol': 'AAPL',
+            'side': 'buy',
+            'qty': '100',
+            'status': 'filled',
+            'type': 'market',
+            'created_at': '2023-01-01T10:00:00Z',
+            'filled_at': '2023-01-01T10:01:30Z',
+            'filled_qty': '100',
+            'filled_avg_price': '150.25'
+        }
+        
+        openalgo_trade = map_trade_data(alpaca_trade)
+        
+        expected_fields = ['tradeid', 'orderid', 'symbol', 'exchange', 'action', 'quantity', 'average_price', 'trade_value']
+        
+        if isinstance(openalgo_trade, list):
+            # Should return empty list if no valid trades
+            if not openalgo_trade:
+                print("✗ Trade mapping returned empty list for valid trade")
+                return False
+            openalgo_trade = openalgo_trade[0] if openalgo_trade else {}
+        
+        if all(field in openalgo_trade for field in expected_fields):
+            print("✓ Trade mapping successful")
+            print(f"  Alpaca trade: {alpaca_trade['id'][:8]}...")
+            print(f"  OpenAlgo format: {openalgo_trade['tradeid'][:8]}...")
+            print(f"  Action: {openalgo_trade['action']}")
+            print(f"  Quantity: {openalgo_trade['quantity']}")
+            print(f"  Price: {openalgo_trade['average_price']}")
+            print(f"  Value: {openalgo_trade['trade_value']}")
+            return True
+        else:
+            print(f"✗ Trade mapping missing fields")
+            missing = [f for f in expected_fields if f not in openalgo_trade]
+            print(f"  Missing: {missing}")
+            return False
+            
+    except Exception as e:
+        print(f"✗ Trade mapping test error: {str(e)}")
+        return False
+
 def check_environment():
     """Check if required environment variables are set"""
     print("Checking Environment Configuration...")
@@ -169,8 +220,9 @@ def main():
     
     transform_ok = test_data_transformation()
     mapping_ok = test_order_mapping()
+    trade_mapping_ok = test_trade_mapping()
     
-    unit_tests_passed = transform_ok and mapping_ok
+    unit_tests_passed = transform_ok and mapping_ok and trade_mapping_ok
     
     # Run integration tests (require API keys)
     integration_tests_passed = True

@@ -1,43 +1,175 @@
 def map_order_data(order_data):
     """
-    Map Alpaca order data to OpenAlgo standard format
+    Map Alpaca order data to OpenAlgo standard format.
+    Handles both single orders and lists of orders.
     
     Args:
-        order_data: Raw order data from Alpaca
+        order_data: Either a single order dict or a list of order dicts from Alpaca
         
     Returns:
-        dict: OpenAlgo standard order data
+        Either a single mapped order dict or a list of mapped order dicts
+    """
+    if isinstance(order_data, list):
+        return [map_single_order(order) for order in order_data]
+    else:
+        return map_single_order(order_data)
+
+def map_single_order(order):
+    """
+    Map a single order from Alpaca format to OpenAlgo format.
+    
+    Args:
+        order: Single order dict from Alpaca API
+        
+    Returns:
+        dict: Mapped order in OpenAlgo format
     """
     return {
-        'orderid': str(order_data.get('id', '')),
-        'symbol': order_data.get('symbol', ''),
+        'orderid': str(order.get('id', '')),
+        'symbol': order.get('symbol', ''),
         'exchange': 'NASDAQ',  # Default for Alpaca
-        'action': order_data.get('side', '').upper(),
-        'quantity': int(order_data.get('qty', 0)),
-        'price': float(order_data.get('limit_price', 0)) if order_data.get('limit_price') else 0,
+        'action': order.get('side', '').upper(),
+        'quantity': int(order.get('qty', 0)),
+        'price': float(order.get('limit_price', 0)) if order.get('limit_price') else 0,
         'product': 'CNC',  # Alpaca doesn't have product types, default to CNC
-        'status': map_order_status(order_data.get('status', '')),
-        'timestamp': order_data.get('created_at', ''),
-        'filled_quantity': int(order_data.get('filled_qty', 0)),
-        'pending_quantity': int(order_data.get('qty', 0)) - int(order_data.get('filled_qty', 0)),
-        'average_price': float(order_data.get('filled_avg_price', 0)) if order_data.get('filled_avg_price') else 0,
-        'order_type': order_data.get('type', '').upper(),
-        'trigger_price': float(order_data.get('stop_price', 0)) if order_data.get('stop_price') else 0
+        'status': map_order_status(order.get('status', '')),
+        'timestamp': order.get('created_at', ''),
+        'filled_quantity': int(order.get('filled_qty', 0)),
+        'pending_quantity': int(order.get('qty', 0)) - int(order.get('filled_qty', 0)),
+        'average_price': float(order.get('filled_avg_price', 0)) if order.get('filled_avg_price') else 0,
+        'order_type': order.get('type', '').upper(),
+        'trigger_price': float(order.get('stop_price', 0)) if order.get('stop_price') else 0
     }
 
 def map_trade_data(trade_data):
-    """Map Alpaca trade data to OpenAlgo format"""
+    """
+    Map Alpaca trade data to OpenAlgo standard format.
+    Handles both single trades and lists of trades.
+    
+    Args:
+        trade_data: Either a single trade dict or a list of trade dicts from Alpaca
+        
+    Returns:
+        Either a single mapped trade dict or a list of mapped trade dicts
+    """
+    if isinstance(trade_data, list):
+        mapped_trades = []
+        for trade in trade_data:
+            mapped_trade = map_single_trade(trade)
+            # Only add trades that have some data (not completely empty)
+            if mapped_trade.get('symbol') and mapped_trade.get('action'):
+                mapped_trades.append(mapped_trade)
+        return mapped_trades
+    else:
+        return map_single_trade(trade_data)
+
+def map_single_trade(trade):
+    """Map a single trade from Alpaca format to OpenAlgo format"""
     # For Alpaca, trades are represented as filled orders
+    from utils.logging import get_logger
+    logger = get_logger(__name__)
+    
+    logger.debug(f"Mapping trade data: {trade}")
+    
+    # Safely extract and convert quantity
+    # Try multiple field names that Alpaca might use
+    quantity = 0
+    for qty_field in ['filled_qty', 'qty', 'quantity']:
+        filled_qty = trade.get(qty_field, 0)
+        try:
+            if filled_qty:
+                if isinstance(filled_qty, str):
+                    quantity = int(float(filled_qty)) if filled_qty != '0' else 0
+                else:
+                    quantity = int(float(filled_qty))
+                if quantity > 0:
+                    break
+        except (ValueError, TypeError):
+            continue
+    
+    # Safely extract and convert average price
+    # Try multiple field names that Alpaca might use
+    average_price = 0.0
+    for price_field in ['filled_avg_price', 'avg_fill_price', 'price', 'limit_price']:
+        filled_avg_price = trade.get(price_field, 0)
+        try:
+            if filled_avg_price:
+                if isinstance(filled_avg_price, str):
+                    average_price = float(filled_avg_price) if filled_avg_price != '0' else 0.0
+                else:
+                    average_price = float(filled_avg_price)
+                if average_price > 0:
+                    break
+        except (ValueError, TypeError):
+            continue
+    
+    # If we still don't have price but have quantity, try to use any price field as fallback
+    if quantity > 0 and average_price == 0:
+        for price_field in ['stop_price', 'trail_price']:
+            fallback_price = trade.get(price_field, 0)
+            try:
+                if fallback_price:
+                    if isinstance(fallback_price, str):
+                        average_price = float(fallback_price) if fallback_price != '0' else 0.0
+                    else:
+                        average_price = float(fallback_price)
+                    if average_price > 0:
+                        break
+            except (ValueError, TypeError):
+                continue
+    
+    # Calculate trade value
+    trade_value = quantity * average_price if quantity > 0 and average_price > 0 else 0.0
+    
+    # Get transaction type (side)
+    side = trade.get('side', '').upper()
+    if not side:
+        # Fallback to other possible field names
+        side = trade.get('transaction_type', trade.get('action', '')).upper()
+    
+    # Get order type
+    order_type = trade.get('type', '').upper()
+    if not order_type:
+        order_type = trade.get('order_type', 'MARKET').upper()
+    
+    # Get timestamp - prefer filled_at over created_at for actual execution time
+    timestamp = ''
+    for time_field in ['filled_at', 'updated_at', 'submitted_at', 'created_at']:
+        timestamp = trade.get(time_field, '')
+        if timestamp:
+            break
+    
+    # Use a separate trade ID if available, otherwise use order ID
+    trade_id = trade.get('trade_id', trade.get('id', ''))
+    order_id = trade.get('order_id', trade.get('id', ''))
+    
+    # Determine exchange - default to NASDAQ but check if other info is available
+    symbol = trade.get('symbol', '')
+    exchange = 'NASDAQ'  # Default for most US stocks
+    
+    # Log the extracted values for debugging
+    logger.debug(f"Extracted values: symbol={symbol}, side={side}, quantity={quantity}, "
+                f"average_price={average_price}, trade_value={trade_value}, "
+                f"order_id={order_id}, timestamp={timestamp}")
+    
+    # Log what fields were actually found in the trade data
+    available_fields = list(trade.keys())
+    logger.debug(f"Available fields in trade data: {available_fields}")
+    
     return {
-        'tradeid': str(trade_data.get('id', '')),
-        'orderid': str(trade_data.get('id', '')),  # Same as order ID for Alpaca
-        'symbol': trade_data.get('symbol', ''),
-        'exchange': 'NASDAQ',
-        'action': trade_data.get('side', '').upper(),
-        'quantity': int(trade_data.get('filled_qty', 0)),
-        'price': float(trade_data.get('filled_avg_price', 0)) if trade_data.get('filled_avg_price') else 0,
-        'product': 'CNC',
-        'timestamp': trade_data.get('filled_at', trade_data.get('created_at', ''))
+        'tradeid': str(trade_id),
+        'orderid': str(order_id),
+        'symbol': symbol,
+        'exchange': exchange,
+        'action': side,
+        'quantity': quantity,
+        'average_price': average_price,
+        'trade_value': trade_value,
+        'price': average_price,  # For backward compatibility
+        'product': 'CNC',  # Default product type for Alpaca
+        'timestamp': timestamp,
+        'order_type': order_type,
+        'status': 'COMPLETE'  # All trades are completed by definition
     }
 
 def map_position_data(position_data):
@@ -86,29 +218,68 @@ def map_order_status(alpaca_status):
 
 def transform_order_data(raw_orders):
     """Transform list of raw orders to OpenAlgo format"""
-    transformed_orders = []
-    
     if not raw_orders:
-        return transformed_orders
+        return []
         
-    for order in raw_orders:
-        transformed_order = map_order_data(order)
-        transformed_orders.append(transformed_order)
-        
-    return transformed_orders
+    return map_order_data(raw_orders)
 
 def transform_tradebook_data(raw_trades):
     """Transform list of raw trades to OpenAlgo format"""
-    transformed_trades = []
+    from utils.logging import get_logger
+    logger = get_logger(__name__)
+    
+    transformed_data = []
     
     if not raw_trades:
-        return transformed_trades
+        logger.info("No raw trades provided to transform_tradebook_data")
+        return transformed_data
         
-    for trade in raw_trades:
-        transformed_trade = map_trade_data(trade)
-        transformed_trades.append(transformed_trade)
+    logger.info(f"Processing {len(raw_trades) if isinstance(raw_trades, list) else 1} raw trades")
         
-    return transformed_trades
+    # Process the trades - for Alpaca, these are filled orders
+    trades = map_trade_data(raw_trades) if raw_trades else []
+    
+    if isinstance(trades, list):
+        logger.info(f"After mapping: {len(trades)} trades")
+        for trade in trades:
+            # Include all trades that have basic data, even if quantity is 0
+            if trade.get('symbol') and trade.get('action'):
+                transformed_trade = {
+                    "symbol": trade.get('symbol', ''),
+                    "exchange": trade.get('exchange', ''),
+                    "product": trade.get('product', ''),
+                    "action": trade.get('action', ''),
+                    "quantity": trade.get('quantity', 0),
+                    "average_price": trade.get('average_price', 0.0),
+                    "trade_value": trade.get('trade_value', 0.0),
+                    "orderid": trade.get('orderid', ''),
+                    "tradeid": trade.get('tradeid', ''),
+                    "timestamp": trade.get('timestamp', ''),
+                    "order_type": trade.get('order_type', ''),
+                    "status": trade.get('status', 'COMPLETE')
+                }
+                transformed_data.append(transformed_trade)
+    else:
+        # Handle single trade
+        if trades and trades.get('symbol') and trades.get('action'):
+            transformed_trade = {
+                "symbol": trades.get('symbol', ''),
+                "exchange": trades.get('exchange', ''),
+                "product": trades.get('product', ''),
+                "action": trades.get('action', ''),
+                "quantity": trades.get('quantity', 0),
+                "average_price": trades.get('average_price', 0.0),
+                "trade_value": trades.get('trade_value', 0.0),
+                "orderid": trades.get('orderid', ''),
+                "tradeid": trades.get('tradeid', ''),
+                "timestamp": trades.get('timestamp', ''),
+                "order_type": trades.get('order_type', ''),
+                "status": trades.get('status', 'COMPLETE')
+            }
+            transformed_data.append(transformed_trade)
+    
+    logger.info(f"Final transformed data: {len(transformed_data)} trades")
+    return transformed_data
 
 def transform_positions_data(raw_positions):
     """Transform list of raw positions to OpenAlgo format"""

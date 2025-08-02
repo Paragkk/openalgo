@@ -57,9 +57,54 @@ def get_order_book(auth):
 
 def get_trade_book(auth):
     """Get trade book from Alpaca - using orders with filled status"""
-    # Alpaca doesn't have separate trades endpoint, we get filled orders
-    response = get_api_response("/orders?status=filled", auth)
-    return response
+    try:
+        # First try to get filled orders
+        response = get_api_response("/orders?status=filled", auth)
+        
+        # Check for API error response
+        if isinstance(response, dict) and 'error' in response:
+            logger.error(f"API error in trade book: {response['error']}")
+            return []
+        
+        # Ensure we return a list for consistency
+        if not isinstance(response, list):
+            logger.warning(f"Expected list but got {type(response)} for trade book: {response}")
+            return []
+        
+        logger.info(f"Retrieved {len(response)} filled orders from Alpaca")
+        
+        # If no filled orders found, for testing purposes, also get partially filled orders
+        if not response:
+            logger.info("No filled orders found, checking for partially filled orders...")
+            response = get_api_response("/orders?status=partially_filled", auth)
+            if isinstance(response, list):
+                logger.info(f"Found {len(response)} partially filled orders")
+            else:
+                response = []
+        
+        # If still no data, check all recent orders for debugging
+        if not response:
+            logger.info("No filled or partially filled orders found, checking all recent orders...")
+            all_orders = get_api_response("/orders", auth)
+            if isinstance(all_orders, list):
+                logger.info(f"Total orders in account: {len(all_orders)}")
+                if all_orders:
+                    sample_order = all_orders[0]
+                    logger.info(f"Sample order status: {sample_order.get('status')}, filled_qty: {sample_order.get('filled_qty')}")
+        else:
+            # Log first filled order for debugging
+            sample_order = response[0]
+            logger.info(f"Sample filled order: ID={sample_order.get('id')}, symbol={sample_order.get('symbol')}, "
+                       f"side={sample_order.get('side')}, filled_qty={sample_order.get('filled_qty')}, "
+                       f"filled_avg_price={sample_order.get('filled_avg_price')}")
+            logger.info(f"Complete sample order data: {sample_order}")
+        
+        # Return all filled orders - let the mapping handle the filtering
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error fetching trade book: {e}")
+        return []
 
 def get_positions(auth):
     """Get positions from Alpaca"""
