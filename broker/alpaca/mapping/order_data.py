@@ -1,3 +1,5 @@
+from utils.data_utils import safe_float
+
 def map_order_data(order_data):
     """
     Map Alpaca order data to OpenAlgo standard format.
@@ -30,15 +32,15 @@ def map_single_order(order):
         'exchange': 'NASDAQ',  # Default for Alpaca
         'action': order.get('side', '').upper(),
         'quantity': int(order.get('qty', 0)),
-        'price': float(order.get('limit_price', 0)) if order.get('limit_price') else 0,
+        'price': safe_float(order.get('limit_price', 0)),
         'product': 'CNC',  # Alpaca doesn't have product types, default to CNC
         'status': map_order_status(order.get('status', '')),
         'timestamp': order.get('created_at', ''),
         'filled_quantity': int(order.get('filled_qty', 0)),
         'pending_quantity': int(order.get('qty', 0)) - int(order.get('filled_qty', 0)),
-        'average_price': float(order.get('filled_avg_price', 0)) if order.get('filled_avg_price') else 0,
+        'average_price': safe_float(order.get('filled_avg_price', 0)),
         'order_type': order.get('type', '').upper(),
-        'trigger_price': float(order.get('stop_price', 0)) if order.get('stop_price') else 0
+        'trigger_price': safe_float(order.get('stop_price', 0))
     }
 
 def map_trade_data(trade_data):
@@ -173,14 +175,40 @@ def map_single_trade(trade):
     }
 
 def map_position_data(position_data):
-    """Map Alpaca position data to OpenAlgo format"""
-    qty = float(position_data.get('qty', 0))
-    avg_entry_price = float(position_data.get('avg_entry_price', 0))
-    market_value = float(position_data.get('market_value', 0))
+    """
+    Map Alpaca position data to OpenAlgo format.
+    Handles both single positions and lists of positions.
+    
+    Args:
+        position_data: Either a single position dict or a list of position dicts from Alpaca
+        
+    Returns:
+        Either a single mapped position dict or a list of mapped position dicts
+    """
+    if isinstance(position_data, list):
+        # Handle list of positions - map each one
+        mapped_positions = []
+        for position in position_data:
+            mapped_position = map_single_position(position)
+            if mapped_position:  # Only include valid positions
+                mapped_positions.append(mapped_position)
+        return mapped_positions
+    else:
+        # Handle single position
+        return map_single_position(position_data)
+
+def map_single_position(position_data):
+    """Map a single Alpaca position to OpenAlgo format"""
+    if not position_data:
+        return None
+        
+    qty = safe_float(position_data.get('qty', 0))
+    avg_entry_price = safe_float(position_data.get('avg_entry_price', 0))
+    market_value = safe_float(position_data.get('market_value', 0))
     
     # Calculate P&L
-    pnl = float(position_data.get('unrealized_pl', 0))
-    day_change = float(position_data.get('unrealized_intraday_pl', 0))
+    pnl = safe_float(position_data.get('unrealized_pl', 0))
+    day_change = safe_float(position_data.get('unrealized_intraday_pl', 0))
     
     return {
         'symbol': position_data.get('symbol', ''),
@@ -290,7 +318,7 @@ def transform_positions_data(raw_positions):
         
     for position in raw_positions:
         # Only include positions with non-zero quantity
-        qty = float(position.get('qty', 0))
+        qty = safe_float(position.get('qty', 0))
         if qty != 0:
             transformed_position = map_position_data(position)
             transformed_positions.append(transformed_position)
@@ -319,12 +347,12 @@ def map_portfolio_data(positions_data):
         return portfolio
         
     for position in positions_data:
-        qty = float(position.get('qty', 0))
+        qty = safe_float(position.get('qty', 0))
         if qty == 0:
             continue  # Skip positions with zero quantity
             
-        avg_entry_price = float(position.get('avg_entry_price', 0))
-        market_value = float(position.get('market_value', 0))
+        avg_entry_price = safe_float(position.get('avg_entry_price', 0))
+        market_value = safe_float(position.get('market_value', 0))
         current_price = market_value / abs(qty) if qty != 0 else 0
         
         portfolio_item = {
@@ -333,9 +361,9 @@ def map_portfolio_data(positions_data):
             'quantity': int(qty),
             'average_price': avg_entry_price,
             'current_price': current_price,
-            'pnl': float(position.get('unrealized_pl', 0)),
-            'day_change': float(position.get('unrealized_intraday_pl', 0)),
-            'day_change_percent': float(position.get('unrealized_intraday_plpc', 0)) * 100,
+            'pnl': safe_float(position.get('unrealized_pl', 0)),
+            'day_change': safe_float(position.get('unrealized_intraday_pl', 0)),
+            'day_change_percent': safe_float(position.get('unrealized_intraday_plpc', 0)) * 100,
             'market_value': market_value
         }
         portfolio.append(portfolio_item)
@@ -344,15 +372,19 @@ def map_portfolio_data(positions_data):
 
 def calculate_portfolio_statistics(portfolio):
     """Calculate portfolio statistics"""
-    total_value = sum(abs(p.get('market_value', 0)) for p in portfolio)
-    total_pnl = sum(p.get('pnl', 0) for p in portfolio)
-    total_day_change = sum(p.get('day_change', 0) for p in portfolio)
+    # Calculate totals using the standard format expected by the template
+    totalholdingvalue = sum(abs(p.get('market_value', 0)) for p in portfolio)
+    totalinvvalue = sum(p.get('average_price', 0) * abs(p.get('quantity', 0)) for p in portfolio)
+    totalprofitandloss = sum(p.get('pnl', 0) for p in portfolio)
+    
+    # Calculate P&L percentage (avoid division by zero)
+    totalpnlpercentage = (totalprofitandloss / totalinvvalue * 100) if totalinvvalue != 0 else 0
     
     return {
-        'total_value': total_value,
-        'total_pnl': total_pnl,
-        'total_day_change': total_day_change,
-        'positions_count': len(portfolio)
+        'totalholdingvalue': totalholdingvalue,
+        'totalinvvalue': totalinvvalue,
+        'totalprofitandloss': totalprofitandloss,
+        'totalpnlpercentage': totalpnlpercentage
     }
 
 def transform_holdings_data(raw_positions):
