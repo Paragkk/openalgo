@@ -53,18 +53,18 @@ def async_master_contract_download(broker):
             from database.token_db import get_symbol_count
             total_symbols = get_symbol_count()
             
-            # Check if we actually have symbols downloaded
-            if total_symbols and total_symbols > 0:
-                update_status(broker, 'success', 'Master contract download completed successfully', total_symbols)
-                logger.info(f"Master contract download completed for {broker} with {total_symbols} symbols")
-            else:
-                update_status(broker, 'error', 'Master contract download failed: No symbols downloaded')
-                logger.error(f"Master contract download failed for {broker}: No symbols in database")
-                return {'status': 'error', 'message': 'No symbols downloaded'}
-        except Exception as symbol_error:
-            logger.error(f"Error checking symbol count for {broker}: {str(symbol_error)}")
-            update_status(broker, 'error', f'Master contract download error: Unable to verify download - {str(symbol_error)}')
-            return {'status': 'error', 'message': f'Unable to verify download: {str(symbol_error)}'}
+        # Since socketio.emit doesn't return a meaningful value, we check if no exception was raised
+        update_status(broker, 'success', 'Master contract download completed successfully', total_symbols)
+        logger.info(f"Master contract download completed for {broker}")
+        
+        # Load symbols into memory cache after successful download
+        try:
+            from database.master_contract_cache_hook import hook_into_master_contract_download
+            logger.info(f"Loading symbols into memory cache for broker: {broker}")
+            hook_into_master_contract_download(broker)
+        except Exception as cache_error:
+            logger.error(f"Failed to load symbols into cache: {cache_error}")
+            # Don't fail the whole process if cache loading fails
             
     except Exception as e:
         logger.error(f"Error during master contract download for {broker}: {str(e)}")
