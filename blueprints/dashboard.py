@@ -54,4 +54,4 @@ def dashboard():
         margin_data.get('utiliseddebits') == '0.00'):
         logger.warning(f"All margin data values are zero for user {login_username} - possible authentication issue")
     
-    return render_template('dashboard.html', margin_data=margin_data)
+    return render_template('dashboard.html', margin_data=margin_data, broker=broker)
