@@ -175,11 +175,15 @@ def create_app():
         # Use try-except to handle cases where view functions might not be available
         ats_endpoints = [
             'alpaca_ats_bp.run_screener',
-            'alpaca_ats_bp.init_db', 
+            'alpaca_ats_bp.init_ats_db', 
             'alpaca_ats_bp.backfill',
             'alpaca_ats_bp.collect',
             'alpaca_ats_bp.signals',
-            'alpaca_ats_bp.execute'
+            'alpaca_ats_bp.execute',
+            'alpaca_ats_bp.select_strategy',
+            'alpaca_ats_bp.start_auto_trading',
+            'alpaca_ats_bp.stop_auto_trading',
+            'alpaca_ats_bp.run_trading_cycle'
         ]
         for endpoint in ats_endpoints:
             try:

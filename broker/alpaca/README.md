@@ -73,6 +73,10 @@ broker/alpaca/
 
 - Paper trading only (can be changed to live trading by updating URLs)
 - US stocks only (no options, crypto, or other asset classes in this implementation)
+- **Market Data Access**: Paper trading accounts have limited or no access to historical market data. For full market data access:
+  - Upgrade to a live Alpaca trading account
+  - Subscribe to Alpaca's market data plans
+  - **Yahoo Finance Fallback**: The system now automatically falls back to Yahoo Finance for historical data when Alpaca access is denied
 - WebSocket streaming not implemented (placeholder structure provided)
 
 ## Testing

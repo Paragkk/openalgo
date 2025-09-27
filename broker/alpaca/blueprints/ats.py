@@ -35,7 +35,20 @@ def run_screener():
     limit = int(body.get('limit', 20))
     sector = body.get('sector')
     inserted = run_simple_screener(limit=limit, sector=sector)
-    return jsonify({'inserted': inserted})
+    
+    # Get total watchlist count for better feedback
+    from datetime import date
+    from broker.alpaca.models.ats_schema import get_session, DailyWatchlist
+    sess = get_session()
+    today = date.today()
+    total_watchlist = sess.query(DailyWatchlist).filter(DailyWatchlist.date == today).count()
+    sess.close()
+    
+    return jsonify({
+        'inserted': inserted,
+        'total_watchlist': total_watchlist,
+        'message': f'Screener completed. {inserted} new symbols added, {total_watchlist} total in watchlist.'
+    })
 
 
 @alpaca_ats_bp.route('/backfill', methods=['POST'])

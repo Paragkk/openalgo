@@ -86,35 +86,43 @@ def collect_historical_data(days: int = 5, timeframe: str = '1m', user_id: Optio
         inserted = 0
         for wl, sym in watchlist:
             bars = get_historical_data(sym.symbol, sym.exchange, timeframe, start, end, auth)
+            
+            # Check if market data access is denied
+            if 'error' in bars and 'market data access denied' in bars['error'].lower():
+                logger.warning(f"Market data access denied for {sym.symbol}. Skipping historical data collection.")
+                continue
+                
             series = (bars or {}).get('bars', {}).get(sym.symbol, [])
+            logger.info(f"Retrieved {len(series)} bars for {sym.symbol} from {'Yahoo Finance' if 'error' not in bars and bars.get('timeframe') else 'Alpaca'}")
+            
             for b in series:
                 ts = b.get('t') or b.get('timestamp')
                 if not ts:
+                    logger.warning(f"Bar missing timestamp for {sym.symbol}: {b}")
                     continue
-                ts_dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                # Upsert by (symbol_id, timestamp)
-                existing = (
-                    db_session.query(MarketData)
-                    .filter(MarketData.symbol_id == sym.id, MarketData.timestamp == ts_dt)
-                    .first()
+                try:
+                    ts_dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except Exception as e:
+                    logger.error(f"Failed to parse timestamp '{ts}' for {sym.symbol}: {e}")
+                    continue
+                    
+                # Upsert by (symbol_id, timestamp) using merge
+                md = MarketData(
+                    symbol_id=sym.id,
+                    timestamp=ts_dt,
+                    open=b.get('o'),
+                    high=b.get('h'),
+                    low=b.get('l'),
+                    close=b.get('c'),
+                    volume=b.get('v')
                 )
-                if existing:
-                    existing.open = b.get('o')
-                    existing.high = b.get('h')
-                    existing.low = b.get('l')
-                    existing.close = b.get('c')
-                    existing.volume = b.get('v')
-                else:
-                    db_session.add(MarketData(
-                        symbol_id=sym.id,
-                        timestamp=ts_dt,
-                        open=b.get('o'),
-                        high=b.get('h'),
-                        low=b.get('l'),
-                        close=b.get('c'),
-                        volume=b.get('v')
-                    ))
+                try:
+                    db_session.merge(md)
                     inserted += 1
+                except Exception as e:
+                    logger.error(f"Failed to upsert bar for {sym.symbol} at {ts_dt}: {e}")
+                    db_session.rollback()
+                    continue
         db_session.commit()
         return {"status": "ok", "inserted": inserted}
     except Exception as e:

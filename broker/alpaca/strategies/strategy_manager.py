@@ -5,6 +5,9 @@ import importlib.util
 import sys
 import os
 import pandas as pd
+import threading
+import time
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -13,6 +16,7 @@ class StrategyType(Enum):
     SUPER_TREND = "supertrend"
     SMA_CROSSOVER = "sma_crossover"
     MEAN_REVERSION = "mean_reversion"
+    CONTINUOUS_TRADING = "continuous_trading"
     # Dynamic strategies loaded from files
     DYNAMIC = "dynamic"
 
@@ -50,6 +54,16 @@ class StrategyConfig:
                 'exit_threshold': 0.5,
                 'risk_per_trade': 0.01,
                 'max_positions': 10
+            },
+            StrategyType.CONTINUOUS_TRADING: {
+                'data_collection_interval': 60,  # seconds
+                'signal_check_interval': 30,     # seconds
+                'max_positions': 1,              # Only one position at a time
+                'risk_per_trade': 0.02,
+                'fast_period': 5,
+                'slow_period': 20,
+                'min_volume': 100000,            # Minimum volume filter
+                'max_spread': 0.05               # Maximum spread filter
             }
         }
 
@@ -332,6 +346,142 @@ class EMACrossoverStrategy(TradingStrategy):
 
         return ema
 
+class ContinuousTradingStrategy(TradingStrategy):
+    """Continuous Trading Strategy with position management."""
+
+    def __init__(self, config: StrategyConfig):
+        super().__init__(config)
+        self.current_position = None  # Track current position
+        self.entry_price = None
+        self.position_side = None
+
+    def generate_signals(self, symbol_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Generate signals based on EMA crossover with position management."""
+        try:
+            # If we have an open position, don't generate new entry signals
+            if self.current_position is not None:
+                return None
+
+            prices = symbol_data.get('prices', [])
+            volumes = symbol_data.get('volumes', [])
+
+            if len(prices) < self.config.parameters['slow_period']:
+                return None
+
+            # Apply filters
+            if not self._passes_filters(symbol_data):
+                return None
+
+            # Calculate EMAs
+            fast_period = self.config.parameters['fast_period']
+            slow_period = self.config.parameters['slow_period']
+
+            fast_ema = self._calculate_ema(prices, fast_period)
+            slow_ema = self._calculate_ema(prices, slow_period)
+
+            if len(fast_ema) < 2 or len(slow_ema) < 2:
+                return None
+
+            # Check for crossover
+            prev_fast, curr_fast = fast_ema[-2], fast_ema[-1]
+            prev_slow, curr_slow = slow_ema[-2], slow_ema[-1]
+
+            if prev_fast <= prev_slow and curr_fast > curr_slow:
+                return {
+                    'signal': 'BUY',
+                    'confidence': 0.8,
+                    'reason': f'EMA {fast_period} crossed above EMA {slow_period}',
+                    'symbol': symbol_data.get('symbol')
+                }
+            elif prev_fast >= prev_slow and curr_fast < curr_slow:
+                return {
+                    'signal': 'SELL',
+                    'confidence': 0.8,
+                    'reason': f'EMA {fast_period} crossed below EMA {slow_period}',
+                    'symbol': symbol_data.get('symbol')
+                }
+
+            return None
+        except Exception as e:
+            self.logger.error(f"Error generating continuous trading signals: {e}")
+            return None
+
+    def should_exit(self, position_data: Dict[str, Any]) -> bool:
+        """Check if position should be exited based on opposite signal."""
+        try:
+            prices = position_data.get('prices', [])
+            if len(prices) < self.config.parameters['slow_period']:
+                return False
+
+            fast_period = self.config.parameters['fast_period']
+            slow_period = self.config.parameters['slow_period']
+
+            fast_ema = self._calculate_ema(prices, fast_period)
+            slow_ema = self._calculate_ema(prices, slow_period)
+
+            if len(fast_ema) < 2 or len(slow_ema) < 2:
+                return False
+
+            # Exit if EMAs cross in opposite direction
+            prev_fast, curr_fast = fast_ema[-2], fast_ema[-1]
+            prev_slow, curr_slow = slow_ema[-2], slow_ema[-1]
+
+            side = position_data.get('side', 'LONG')
+            if side == 'LONG' and prev_fast >= prev_slow and curr_fast < curr_slow:
+                return True
+            elif side == 'SHORT' and prev_fast <= prev_slow and curr_fast > curr_slow:
+                return True
+
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking exit condition: {e}")
+            return False
+
+    def _passes_filters(self, symbol_data: Dict[str, Any]) -> bool:
+        """Apply filters to determine if symbol should be traded."""
+        try:
+            volumes = symbol_data.get('volumes', [])
+            prices = symbol_data.get('prices', [])
+
+            if not volumes or not prices:
+                return False
+
+            # Volume filter
+            min_volume = self.config.parameters.get('min_volume', 100000)
+            recent_volumes = volumes[-20:] if len(volumes) >= 20 else volumes
+            if recent_volumes:
+                avg_volume = sum(recent_volumes) / len(recent_volumes)
+                if avg_volume < min_volume:
+                    return False
+
+            # Spread filter (if available)
+            max_spread = self.config.parameters.get('max_spread', 0.05)
+            if len(prices) >= 2:
+                spread = abs(prices[-1] - prices[-2]) / prices[-2]
+                if spread > max_spread:
+                    return False
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Error applying filters: {e}")
+            return False
+
+    def update_position(self, position_data: Dict[str, Any]):
+        """Update current position information."""
+        self.current_position = position_data.get('symbol')
+        self.entry_price = position_data.get('entry_price')
+        self.position_side = position_data.get('side')
+
+    def clear_position(self):
+        """Clear current position information."""
+        self.current_position = None
+        self.entry_price = None
+        self.position_side = None
+
+    def has_open_position(self) -> bool:
+        """Check if there's an open position."""
+        return self.current_position is not None
+
 class StrategyFactory:
     """Factory for creating trading strategies."""
 
@@ -343,6 +493,8 @@ class StrategyFactory:
 
         if strategy_type == StrategyType.EMA_CROSSOVER:
             return EMACrossoverStrategy(config)
+        elif strategy_type == StrategyType.CONTINUOUS_TRADING:
+            return ContinuousTradingStrategy(config)
         elif strategy_type == StrategyType.SUPER_TREND:
             # Would implement SuperTrend strategy
             raise NotImplementedError("SuperTrend strategy not implemented yet")
@@ -390,6 +542,13 @@ class StrategyLoader:
                 'id': 'supertrend',
                 'name': 'SuperTrend',
                 'description': 'SuperTrend trend following strategy',
+                'type': 'built_in',
+                'file': None
+            },
+            {
+                'id': 'continuous_trading',
+                'name': 'Continuous Trading',
+                'description': 'Continuous automated trading with position management',
                 'type': 'built_in',
                 'file': None
             }
@@ -465,37 +624,52 @@ class AutoTradingSystem:
         self.strategy = StrategyFactory.create_strategy(strategy_type, self.strategy_config)
         self.logger = get_logger(__name__)
         self.is_running = False
+        self.trading_thread = None
+        self.data_thread = None
+        self.should_stop = False
 
     def start_automated_trading(self) -> Dict[str, Any]:
         """Start the automated trading system."""
         try:
+            if self.is_running:
+                return {'status': 'error', 'message': 'Trading system is already running'}
+
             self.is_running = True
+            self.should_stop = False
             self.logger.info(f"Starting automated trading with strategy: {self.strategy.__class__.__name__}")
 
-            # Step 1: Run screener to populate daily_watchlist
+            # Step 1: Run initial screener to populate watchlist
             screener_result = self._run_screener()
+            self.logger.info(f"Screener completed: {screener_result}")
 
-            # Step 2: Collect historical data for watchlist symbols
+            # Step 2: Collect initial historical data
             data_result = self._collect_market_data()
+            self.logger.info(f"Initial data collection completed: {data_result}")
 
-            # Step 3: Generate trading signals
-            signals_result = self._generate_signals()
+            # Step 3: Start continuous data collection thread
+            data_interval = self.strategy_config.parameters.get('data_collection_interval', 60)
+            self.data_thread = threading.Thread(target=self._continuous_data_collection, args=(data_interval,))
+            self.data_thread.daemon = True
+            self.data_thread.start()
 
-            # Step 4: Execute signals
-            execution_result = self._execute_signals()
+            # Step 4: Start continuous trading thread
+            signal_interval = self.strategy_config.parameters.get('signal_check_interval', 30)
+            self.trading_thread = threading.Thread(target=self._continuous_trading, args=(signal_interval,))
+            self.trading_thread.daemon = True
+            self.trading_thread.start()
 
             return {
                 'status': 'success',
                 'message': 'Automated trading system started successfully',
-                'results': {
-                    'screener': screener_result,
-                    'data_collection': data_result,
-                    'signal_generation': signals_result,
-                    'execution': execution_result
+                'config': {
+                    'data_collection_interval': data_interval,
+                    'signal_check_interval': signal_interval,
+                    'strategy': self.strategy.__class__.__name__
                 }
             }
         except Exception as e:
             self.logger.error(f"Failed to start automated trading: {e}")
+            self.is_running = False
             return {
                 'status': 'error',
                 'message': str(e)
@@ -503,12 +677,88 @@ class AutoTradingSystem:
 
     def stop_automated_trading(self) -> Dict[str, Any]:
         """Stop the automated trading system."""
-        self.is_running = False
-        self.logger.info("Automated trading system stopped")
-        return {
-            'status': 'success',
-            'message': 'Automated trading system stopped successfully'
-        }
+        try:
+            self.should_stop = True
+            self.is_running = False
+
+            # Wait for threads to finish
+            if self.trading_thread and self.trading_thread.is_alive():
+                self.trading_thread.join(timeout=5)
+            if self.data_thread and self.data_thread.is_alive():
+                self.data_thread.join(timeout=5)
+
+            # Clear position if using continuous trading strategy
+            if hasattr(self.strategy, 'clear_position'):
+                self.strategy.clear_position()
+
+            self.logger.info("Automated trading system stopped successfully")
+            return {
+                'status': 'success',
+                'message': 'Automated trading system stopped successfully'
+            }
+        except Exception as e:
+            self.logger.error(f"Error stopping automated trading: {e}")
+            return {
+                'status': 'error',
+                'message': str(e)
+            }
+
+    def _continuous_data_collection(self, interval: int):
+        """Continuously collect market data at specified intervals."""
+        self.logger.info(f"Starting continuous data collection every {interval} seconds")
+
+        while not self.should_stop and self.is_running:
+            try:
+                # Collect incremental data for watchlist symbols
+                result = self._collect_market_data()
+                count = result.get('data_points_collected', 0)
+                self.logger.debug(f"Collected data for {count} symbols")
+
+                # Sleep for the specified interval
+                time.sleep(interval)
+
+            except Exception as e:
+                self.logger.error(f"Error in continuous data collection: {e}")
+                time.sleep(5)  # Brief pause before retrying
+
+    def _continuous_trading(self, interval: int):
+        """Continuously check for signals and execute trades."""
+        self.logger.info(f"Starting continuous trading every {interval} seconds")
+
+        while not self.should_stop and self.is_running:
+            try:
+                # Check for exit signals first if we have a position
+                if hasattr(self.strategy, 'has_open_position') and self.strategy.has_open_position():
+                    self._check_exit_signals()
+                else:
+                    # Generate new entry signals
+                    signals_result = self._generate_signals()
+                    if signals_result.get('signals_created', 0) > 0:
+                        self.logger.info(f"Generated {signals_result['signals_created']} signals")
+
+                    # Execute any pending signals
+                    execution_result = self._execute_signals()
+                    if execution_result.get('orders_executed', 0) > 0:
+                        self.logger.info(f"Executed {execution_result['orders_executed']} orders")
+
+                # Sleep for the specified interval
+                time.sleep(interval)
+
+            except Exception as e:
+                self.logger.error(f"Error in continuous trading: {e}")
+                time.sleep(5)  # Brief pause before retrying
+
+    def _check_exit_signals(self):
+        """Check for exit signals on open positions."""
+        try:
+            # This would need to be implemented based on how positions are tracked
+            # For now, we'll use the strategy's should_exit method
+            if hasattr(self.strategy, 'should_exit'):
+                # Get current position data and check exit conditions
+                # This is a placeholder - actual implementation would depend on position tracking
+                pass
+        except Exception as e:
+            self.logger.error(f"Error checking exit signals: {e}")
 
     def _run_screener(self) -> Dict[str, Any]:
         """Run the screener to populate daily watchlist."""
@@ -537,8 +787,20 @@ class AutoTradingSystem:
 
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of the automated trading system."""
+        # Map class names to user-friendly names
+        strategy_name_map = {
+            'EMACrossoverStrategy': 'EMA Crossover',
+            'SuperTrendStrategy': 'SuperTrend',
+            'ContinuousTradingStrategy': 'Continuous Trading',
+            'SMACrossoverStrategy': 'SMA Crossover',
+            'MeanReversionStrategy': 'Mean Reversion'
+        }
+        
+        class_name = self.strategy.__class__.__name__
+        display_name = strategy_name_map.get(class_name, class_name)
+        
         return {
             'is_running': self.is_running,
-            'strategy': self.strategy.__class__.__name__,
+            'strategy': display_name,
             'config': self.strategy_config.parameters
         }

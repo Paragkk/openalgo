@@ -14,7 +14,8 @@ def generate_signals(window_short: int = 5, window_long: int = 20) -> int:
     created = 0
     try:
         # active watchlist symbols
-        subq = sess.query(DailyWatchlist.symbol_id).filter(DailyWatchlist.status == 'ACTIVE').subquery()
+        from sqlalchemy import select
+        subq = select(DailyWatchlist.symbol_id).where(DailyWatchlist.status == 'ACTIVE').subquery()
         symbols = sess.query(Symbols).filter(Symbols.id.in_(subq)).all()
 
         for sym in symbols:

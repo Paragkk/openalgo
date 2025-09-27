@@ -138,7 +138,7 @@
                 </svg>
                 Automated Trading
             </h2>
-            <p class="text-base-content/70">Run automated trading system with selected strategy</p>
+            <p class="text-base-content/70">Choose a strategy and start automated trading instantly</p>
 
             <!-- Strategy Selection -->
             <div class="form-control mt-4">
@@ -153,21 +153,9 @@
 
             <!-- Trading Controls -->
             <div class="flex gap-2 mt-4" id="trading-controls">
-                <button onclick="selectStrategy()" class="btn btn-outline btn-primary" id="select-strategy-btn">
-                    <span id="select-strategy-text">Select Strategy</span>
-                    <span id="select-strategy-loading" class="loading loading-spinner loading-sm hidden"></span>
-                </button>
-                <button onclick="startAutoTrading()" class="btn btn-success" id="start-trading-btn" disabled>
-                    <span id="start-trading-text">Start Auto Trading</span>
-                    <span id="start-trading-loading" class="loading loading-spinner loading-sm hidden"></span>
-                </button>
-                <button onclick="stopAutoTrading()" class="btn btn-error" id="stop-trading-btn" disabled>
-                    <span id="stop-trading-text">Stop Auto Trading</span>
-                    <span id="stop-trading-loading" class="loading loading-spinner loading-sm hidden"></span>
-                </button>
-                <button onclick="runTradingCycle()" class="btn btn-warning" id="cycle-trading-btn" disabled>
-                    <span id="cycle-trading-text">Run Cycle</span>
-                    <span id="cycle-trading-loading" class="loading loading-spinner loading-sm hidden"></span>
+                <button onclick="toggleAutoTrading()" class="btn btn-success" id="toggle-trading-btn" disabled>
+                    <span id="toggle-trading-text">Start Auto Trading</span>
+                    <span id="toggle-trading-loading" class="loading loading-spinner loading-sm hidden"></span>
                 </button>
             </div>
 
@@ -438,173 +426,104 @@ async function runScreener() {
 }
 
 // Automated Trading System Functions
-async function selectStrategy() {
-    const select = document.getElementById('strategy-select');
-    const selectedOption = select.options[select.selectedIndex];
-    const strategyId = select.value;
+async function toggleAutoTrading() {
+    const btn = document.getElementById('toggle-trading-btn');
+    const text = document.getElementById('toggle-trading-text');
+    const loading = document.getElementById('toggle-trading-loading');
     
-    if (!strategyId) {
-        showToast('Please select a strategy first.', 'warning');
-        return;
-    }
+    // Check current state from button text
+    const isRunning = text.textContent === 'Stop Auto Trading';
     
-    const btn = document.getElementById('select-strategy-btn');
-    const text = document.getElementById('select-strategy-text');
-    const loading = document.getElementById('select-strategy-loading');
-    
-    btn.disabled = true;
-    text.textContent = 'Selecting...';
-    loading.classList.remove('hidden');
-    
-    try {
-        const payload = { strategy_id: strategyId };
+    if (isRunning) {
+        // Stop trading
+        btn.disabled = true;
+        text.textContent = 'Stopping...';
+        loading.classList.remove('hidden');
         
-        // Add strategy file for dynamic strategies
-        if (selectedOption.dataset.file) {
-            payload.strategy_file = selectedOption.dataset.file;
-        }
-        
-        const response = await fetch('/alpaca/ats/strategy/select', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showToast(`Strategy "${selectedOption.textContent}" selected successfully!`, 'success');
-            updateTradingStatus(result.config);
+        try {
+            const response = await fetch('/alpaca/ats/auto-trade/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
             
-            // Enable trading buttons
-            document.getElementById('start-trading-btn').disabled = false;
-            document.getElementById('cycle-trading-btn').disabled = false;
-        } else {
-            showToast('Failed to select strategy: ' + (result.error || 'Unknown error'), 'error');
-        }
-    } catch (error) {
-        console.error('Strategy selection error:', error);
-        showToast('Failed to select strategy. Please try again.', 'error');
-    } finally {
-        btn.disabled = false;
-        text.textContent = 'Select Strategy';
-        loading.classList.add('hidden');
-    }
-}
-
-async function startAutoTrading() {
-    const btn = document.getElementById('start-trading-btn');
-    const text = document.getElementById('start-trading-text');
-    const loading = document.getElementById('start-trading-loading');
-    
-    btn.disabled = true;
-    text.textContent = 'Starting...';
-    loading.classList.remove('hidden');
-    
-    try {
-        const response = await fetch('/alpaca/ats/auto-trade/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showToast('Automated trading started successfully!', 'success');
-            updateTradingStatus({ is_running: true });
+            const result = await response.json();
             
-            // Update button states
-            document.getElementById('stop-trading-btn').disabled = false;
-            document.getElementById('start-trading-btn').disabled = true;
-        } else {
-            showToast('Failed to start auto trading: ' + (result.error || result.message || 'Unknown error'), 'error');
-        }
-    } catch (error) {
-        console.error('Auto trading start error:', error);
-        showToast('Failed to start automated trading. Please try again.', 'error');
-    } finally {
-        btn.disabled = false;
-        text.textContent = 'Start Auto Trading';
-        loading.classList.add('hidden');
-    }
-}
-
-async function stopAutoTrading() {
-    const btn = document.getElementById('stop-trading-btn');
-    const text = document.getElementById('stop-trading-text');
-    const loading = document.getElementById('stop-trading-loading');
-    
-    btn.disabled = true;
-    text.textContent = 'Stopping...';
-    loading.classList.remove('hidden');
-    
-    try {
-        const response = await fetch('/alpaca/ats/auto-trade/stop', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
+            if (response.ok) {
+                showToast('Automated trading stopped successfully!', 'success');
+                updateTradingStatus({ is_running: false });
+                updateToggleButton(false);
+            } else {
+                showToast('Failed to stop auto trading: ' + (result.error || result.message || 'Unknown error'), 'error');
             }
-        });
+        } catch (error) {
+            console.error('Auto trading stop error:', error);
+            showToast('Failed to stop automated trading. Please try again.', 'error');
+        } finally {
+            btn.disabled = false;
+            loading.classList.add('hidden');
+        }
+    } else {
+        // Start trading
+        const select = document.getElementById('strategy-select');
+        const selectedOption = select.options[select.selectedIndex];
+        const strategyId = select.value;
         
-        const result = await response.json();
+        if (!strategyId) {
+            showToast('Please select a strategy first.', 'warning');
+            return;
+        }
         
-        if (response.ok) {
-            showToast('Automated trading stopped successfully!', 'success');
-            updateTradingStatus({ is_running: false });
+        btn.disabled = true;
+        text.textContent = 'Starting...';
+        loading.classList.remove('hidden');
+        
+        try {
+            // Auto-select strategy since it's not pre-selected anymore
+            const payload = { strategy_id: strategyId };
+            if (selectedOption.dataset.file) {
+                payload.strategy_file = selectedOption.dataset.file;
+            }
             
-            // Update button states
-            document.getElementById('start-trading-btn').disabled = false;
-            document.getElementById('stop-trading-btn').disabled = true;
-        } else {
-            showToast('Failed to stop auto trading: ' + (result.error || result.message || 'Unknown error'), 'error');
-        }
-    } catch (error) {
-        console.error('Auto trading stop error:', error);
-        showToast('Failed to stop automated trading. Please try again.', 'error');
-    } finally {
-        btn.disabled = false;
-        text.textContent = 'Stop Auto Trading';
-        loading.classList.add('hidden');
-    }
-}
-
-async function runTradingCycle() {
-    const btn = document.getElementById('cycle-trading-btn');
-    const text = document.getElementById('cycle-trading-text');
-    const loading = document.getElementById('cycle-trading-loading');
-    
-    btn.disabled = true;
-    text.textContent = 'Running...';
-    loading.classList.remove('hidden');
-    
-    try {
-        const response = await fetch('/alpaca/ats/auto-trade/run-cycle', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
+            const selectResponse = await fetch('/alpaca/ats/strategy/select', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!selectResponse.ok) {
+                const selectResult = await selectResponse.json();
+                showToast('Failed to select strategy: ' + (selectResult.error || 'Unknown error'), 'error');
+                return;
             }
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            const signals = result.results.signals_generated;
-            const orders = result.results.orders_executed;
-            showToast(`Cycle completed! ${signals} signals generated, ${orders} orders executed.`, 'success');
-        } else {
-            showToast('Failed to run trading cycle: ' + (result.error || 'Unknown error'), 'error');
+            
+            // Now start auto trading
+            const response = await fetch('/alpaca/ats/auto-trade/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showToast('Automated trading started successfully!', 'success');
+                updateTradingStatus({ is_running: true });
+                updateToggleButton(true);
+            } else {
+                showToast('Failed to start auto trading: ' + (result.error || result.message || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            console.error('Auto trading start error:', error);
+            showToast('Failed to start automated trading. Please try again.', 'error');
+        } finally {
+            btn.disabled = false;
+            loading.classList.add('hidden');
         }
-    } catch (error) {
-        console.error('Trading cycle error:', error);
-        showToast('Failed to run trading cycle. Please try again.', 'error');
-    } finally {
-        btn.disabled = false;
-        text.textContent = 'Run Cycle';
-        loading.classList.add('hidden');
     }
 }
 
@@ -616,7 +535,7 @@ function updateTradingStatus(config) {
             <div class="alert alert-info">
                 <div>
                     <h3 class="font-bold">Status: Not Initialized</h3>
-                    <div class="text-xs">Select a strategy to begin automated trading</div>
+                    <div class="text-xs">Select a strategy from the dropdown above to begin automated trading</div>
                 </div>
             </div>
         `;
@@ -642,6 +561,20 @@ function updateTradingStatus(config) {
     `;
 }
 
+// Update toggle button appearance based on trading state
+function updateToggleButton(isRunning) {
+    const btn = document.getElementById('toggle-trading-btn');
+    const text = document.getElementById('toggle-trading-text');
+    
+    if (isRunning) {
+        btn.className = 'btn btn-error'; // Red for stop
+        text.textContent = 'Stop Auto Trading';
+    } else {
+        btn.className = 'btn btn-success'; // Green for start
+        text.textContent = 'Start Auto Trading';
+    }
+}
+
 // Initialize trading status on page load
 document.addEventListener('DOMContentLoaded', async () => {
     window.masterContractStatus = new MasterContractStatus();
@@ -661,10 +594,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     config: status.config
                 });
                 
-                // Update button states
-                document.getElementById('start-trading-btn').disabled = status.running;
-                document.getElementById('stop-trading-btn').disabled = !status.running;
-                document.getElementById('cycle-trading-btn').disabled = false;
+                // Update toggle button state
+                updateToggleButton(status.running);
             }
         }
     } catch (error) {
@@ -701,6 +632,16 @@ async function loadAvailableStrategies() {
                 
                 select.appendChild(option);
             });
+            
+            // Add event listener to enable toggle button when strategy is selected
+            select.addEventListener('change', function() {
+                const toggleBtn = document.getElementById('toggle-trading-btn');
+                if (this.value) {
+                    toggleBtn.disabled = false;
+                } else {
+                    toggleBtn.disabled = true;
+                }
+            });
         } else {
             console.error('Failed to load strategies');
             // Fallback to basic options
@@ -709,7 +650,18 @@ async function loadAvailableStrategies() {
                 <option value="">Choose a strategy...</option>
                 <option value="ema_crossover">EMA Crossover</option>
                 <option value="supertrend">SuperTrend</option>
+                <option value="continuous_trading">Continuous Trading</option>
             `;
+            
+            // Add event listener for fallback options too
+            select.addEventListener('change', function() {
+                const toggleBtn = document.getElementById('toggle-trading-btn');
+                if (this.value) {
+                    toggleBtn.disabled = false;
+                } else {
+                    toggleBtn.disabled = true;
+                }
+            });
         }
     } catch (error) {
         console.error('Error loading strategies:', error);
@@ -719,7 +671,18 @@ async function loadAvailableStrategies() {
             <option value="">Choose a strategy...</option>
             <option value="ema_crossover">EMA Crossover</option>
             <option value="supertrend">SuperTrend</option>
+            <option value="continuous_trading">Continuous Trading</option>
         `;
+        
+        // Add event listener for fallback options too
+        select.addEventListener('change', function() {
+            const toggleBtn = document.getElementById('toggle-trading-btn');
+            if (this.value) {
+                toggleBtn.disabled = false;
+            } else {
+                toggleBtn.disabled = true;
+            }
+        });
     }
 }
 </script>

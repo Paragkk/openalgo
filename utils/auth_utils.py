@@ -52,6 +52,9 @@ def async_master_contract_download(broker):
         try:
             from database.token_db import get_symbol_count
             total_symbols = get_symbol_count()
+        except Exception as e:
+            logger.error(f"Failed to get symbol count: {e}")
+            total_symbols = 0
             
         # Since socketio.emit doesn't return a meaningful value, we check if no exception was raised
         update_status(broker, 'success', 'Master contract download completed successfully', total_symbols)
