@@ -17,6 +17,7 @@ from utils.constants import (
 )
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.logging import get_logger
+from services.telegram_alert_service import telegram_alert_service
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -94,9 +95,11 @@ def validate_order(order_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     if order_data.get('exchange') not in VALID_EXCHANGES:
         return False, f'Invalid exchange. Must be one of: {", ".join(VALID_EXCHANGES)}'
 
-    # Validate action
-    if order_data.get('action') not in VALID_ACTIONS:
-        return False, f'Invalid action. Must be one of: {", ".join(VALID_ACTIONS)}'
+    # Convert action to uppercase and validate
+    if 'action' in order_data:
+        order_data['action'] = order_data['action'].upper()
+        if order_data['action'] not in VALID_ACTIONS:
+            return False, f'Invalid action. Must be one of: {", ".join(VALID_ACTIONS)} (case insensitive)'
 
     # Validate price type
     if 'pricetype' in order_data and order_data['pricetype'] not in VALID_PRICE_TYPES:
@@ -251,7 +254,9 @@ def process_basket_order_with_auth(
             'request': analyzer_request,
             'response': response_data
         })
-        
+
+        # Send Telegram alert for analyze mode
+        telegram_alert_service.send_order_alert('basketorder', basket_data, response_data, basket_data.get('apikey'))
         return True, response_data, 200
 
     # Live mode - process actual orders
@@ -327,6 +332,9 @@ def process_basket_order_with_auth(
         'results': results
     }
     log_executor.submit(async_log_order, 'basketorder', basket_request_data, response_data)
+
+    # Send Telegram alert for live basket order
+    telegram_alert_service.send_order_alert('basketorder', basket_data, response_data, basket_data.get('apikey'))
 
     return True, response_data, 200
 

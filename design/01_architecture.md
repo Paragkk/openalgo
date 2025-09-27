@@ -1,15 +1,21 @@
-# System Architecture
+# OpenAlgo System Architecture
+
+## Executive Summary
+
+OpenAlgo is a sophisticated, broker-agnostic algorithmic trading platform built with Python Flask that provides a unified API interface for 25+ Indian stock brokers. The platform enables algorithmic trading strategies through REST APIs, WebSocket connections, and an intuitive web interface.
 
 ## Architectural Style
 
-OpenAlgo employs a **Monolithic Application Architecture** with a **RESTful API** interface. The core logic, broker interactions, database management, and API endpoints are contained within a single Flask application process.
+OpenAlgo employs a **Modular Monolithic Architecture** with a **RESTful API** interface, combining the benefits of monolithic simplicity with modular organization through Flask Blueprints and service layers.
 
-Key characteristics:
-*   **Centralized Codebase:** All components reside within the same project structure.
-*   **Flask Framework:** Utilizes the Flask microframework for web application structure and request handling.
-*   **Flask-RESTX:** Leverages Flask-RESTX for building structured REST APIs with Swagger documentation.
-*   **Blueprints/Namespaces:** Organizes API endpoints and application logic into modular blueprints (Flask) and namespaces (Flask-RESTX).
-*   **SQLAlchemy:** Uses SQLAlchemy as the Object-Relational Mapper (ORM) for database interactions.
+### Key Architectural Principles
+*   **Broker Abstraction:** Unified interface abstracting broker-specific implementations
+*   **Service-Oriented Design:** Clear separation between presentation, business logic, and data layers
+*   **Plugin Architecture:** Dynamic broker adapter loading and configuration
+*   **Security by Design:** Multi-layered security with encryption, authentication, and authorization
+*   **Scalability Ready:** Connection pooling, caching strategies, and horizontal scaling support
+*   **Real-time Capabilities:** WebSocket proxy for live market data streaming
+*   **Process Isolation:** Strategy execution in isolated processes for stability
 
 ## Technology Stack
 
